@@ -167,6 +167,10 @@
   .cloud-pill.wait { background:#fef9c3; color:#854d0e; }
   .cloud-pill.ok   { background:var(--good-soft); color:#166534; }
   .cloud-pill.err  { background:var(--bad-soft); color:var(--bad); }
+  .authbox { display:flex; align-items:center; gap:8px; }
+  .auth-user { font-size:12px; color:var(--muted); max-width:150px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .auth-btn { font-family:inherit; font-size:12px; font-weight:600; cursor:pointer; border-radius:999px; padding:6px 12px; border:1px solid var(--line); background:#fff; color:var(--ink); display:inline-flex; align-items:center; gap:5px; white-space:nowrap; }
+  .auth-btn:hover { border-color:var(--brand); color:var(--brand); }
   .badge { display:inline-block; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; background:var(--good-soft); color:#166534; margin-left:6px; vertical-align:middle; }
   table.plist tr.sel td { background: var(--brand-soft); }
   table.plist tr.sel td.name { color: var(--brand); }
@@ -208,6 +212,7 @@
       <h1>คำนวณต้นทุน &amp; ตั้งราคาสินค้า</h1>
     </div>
     <span id="cloudStatus" class="cloud-pill off" title="สถานะการซิงก์ข้อมูลกับ Firebase">● ออฟไลน์</span>
+    <div id="authBox" class="authbox"></div>
   </header>
   <p class="sub">ใส่ต้นทุนและกำไรที่อยากได้ → ระบบคำนวณราคาขายที่ควรตั้ง พร้อมจุดคุ้มทุนต่อเดือน (รองรับ VAT 7% สำหรับผู้จด VAT)</p>
 
@@ -1109,7 +1114,8 @@
     setStatus('● กำลังเชื่อมต่อ…', 'wait');
     const V = "10.12.2";
     const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
-    const { getAuth, signInAnonymously, onAuthStateChanged } =
+    const { getAuth, signInAnonymously, onAuthStateChanged,
+            GoogleAuthProvider, signInWithPopup, linkWithPopup, signInWithCredential, signOut } =
       await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
     const { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } =
       await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
@@ -1118,23 +1124,23 @@
     const auth = getAuth(app);
     const db   = getFirestore(app);
     const clean = p => JSON.parse(JSON.stringify(p));   // strips NaN/undefined for Firestore
-    let firstSnap = true;
 
-    onAuthStateChanged(auth, (user) => {
-      if (!user) return;
+    // (Re)subscribe to the signed-in user's own products collection.
+    let unsub = null;
+    function setupForUser(user){
+      if (unsub){ unsub(); unsub = null; }
       const colRef = collection(db, "users", user.uid, "products");
-
       window.cloud = {
         enabled: true,
         push: (p)  => setDoc(doc(colRef, String(p.id)), clean(p)).catch(e => console.error('cloud push', e)),
         del:  (id) => deleteDoc(doc(colRef, String(id))).catch(e => console.error('cloud del', e)),
       };
-
-      onSnapshot(colRef, (snap) => {
+      let first = true;
+      unsub = onSnapshot(colRef, (snap) => {
         const remote = snap.docs.map(d => d.data());
-        if (firstSnap){
-          firstSnap = false;
-          // First connect: push any local-only items up to the cloud (migration); cloud wins on conflicts.
+        if (first){
+          first = false;
+          // Bring any local-only items up to this account (offline data / anon → Google migration).
           const local = (window.getLocalProducts && window.getLocalProducts()) || [];
           const remoteIds = new Set(remote.map(p => String(p.id)));
           const localOnly = local.filter(p => !remoteIds.has(String(p.id)));
@@ -1147,11 +1153,64 @@
         } else {
           window.applyCloudProducts && window.applyCloudProducts(remote);
         }
-        setStatus('● ซิงก์แล้ว', 'ok');
+        setStatus(user.isAnonymous ? '● ซิงก์แล้ว (เครื่องนี้)' : '● ซิงก์ข้ามเครื่อง', 'ok');
       }, (err) => { console.error(err); setStatus('● ซิงก์ไม่สำเร็จ', 'err'); });
-    });
+    }
 
-    await signInAnonymously(auth);
+    // ----- auth UI (top-right) -----
+    function renderAuthUI(user){
+      const box = document.getElementById('authBox');
+      if (!box) return;
+      if (user && !user.isAnonymous){
+        box.innerHTML = `<span class="auth-user"></span><button class="auth-btn" id="logoutBtn">ออกจากระบบ</button>`;
+        const label = user.email || user.displayName || 'บัญชี Google';
+        const u = box.querySelector('.auth-user'); u.textContent = label; u.title = label;
+        box.querySelector('#logoutBtn').onclick = () => window.cloudAuth.logout();
+      } else {
+        box.innerHTML = `<button class="auth-btn g" id="loginBtn">🔒 ล็อกอิน Google</button>`;
+        box.querySelector('#loginBtn').onclick = () => window.cloudAuth.login();
+      }
+    }
+
+    window.cloudAuth = {
+      login: async () => {
+        const provider = new GoogleAuthProvider();
+        try {
+          const cur = auth.currentUser;
+          if (cur && cur.isAnonymous) await linkWithPopup(cur, provider);   // keep uid + existing data
+          else await signInWithPopup(auth, provider);
+          renderAuthUI(auth.currentUser);
+        } catch (err) {
+          if (err && err.code === 'auth/credential-already-in-use'){
+            // This Google account already exists (used on another device) — switch to it,
+            // and this device's local items get merged up on the next snapshot.
+            const cred = GoogleAuthProvider.credentialFromError(err);
+            if (cred) await signInWithCredential(auth, cred).catch(e => console.error('switch acct', e));
+          } else if (err && (err.code === 'auth/popup-closed-by-user' || err.code === 'auth/cancelled-popup-request')){
+            /* user closed the popup — ignore */
+          } else {
+            console.error('login', err);
+            alert('เข้าสู่ระบบไม่สำเร็จ: ' + ((err && err.code) || err));
+          }
+        }
+      },
+      logout: async () => {
+        try {
+          window.applyCloudProducts && window.applyCloudProducts([]);  // clear local cache before switching
+          await signOut(auth);   // onAuthStateChanged(null) below signs back in anonymously
+        } catch (e) { console.error('logout', e); }
+      },
+    };
+
+    onAuthStateChanged(auth, (user) => {
+      if (user){
+        setupForUser(user);
+        renderAuthUI(user);
+      } else {
+        renderAuthUI(null);
+        signInAnonymously(auth).catch(e => { console.error('anon signin', e); setStatus('● เชื่อมต่อ Firebase ไม่สำเร็จ', 'err'); });
+      }
+    });
   } catch (err) {
     console.error('Firebase init error', err);
     setStatus('● เชื่อมต่อ Firebase ไม่สำเร็จ', 'err');
