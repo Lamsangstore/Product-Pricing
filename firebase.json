@@ -4,10 +4,14 @@
     "ignore": [
       "firebase.json",
       ".firebaserc",
+      "firestore.rules",
       "**/.*",
       "**/node_modules/**",
       "server.js",
       "README.md"
     ]
+  },
+  "firestore": {
+    "rules": "firestore.rules"
   }
 }

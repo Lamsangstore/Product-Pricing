@@ -1,0 +1,16 @@
+rules_version = '2';
+
+// ผู้ใช้แต่ละคน (รวม anonymous) อ่าน/เขียนได้เฉพาะข้อมูลใต้ uid ของตัวเองเท่านั้น
+// ที่เหลือปฏิเสธทั้งหมด — คนอื่นเปิด URL เว็บได้ แต่เห็นข้อมูลของคนอื่นไม่ได้
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /users/{uid}/products/{docId} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
