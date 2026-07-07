@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>คำนวณต้นทุน & ตั้งราคาสินค้า</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --bg: #f4f6fb;
+    --card: #ffffff;
+    --ink: #1f2937;
+    --muted: #6b7280;
+    --line: #e5e7eb;
+    --brand: #4f46e5;
+    --brand-soft: #eef2ff;
+    --good: #16a34a;
+    --good-soft: #dcfce7;
+    --warn: #d97706;
+    --bad: #dc2626;
+    --bad-soft: #fee2e2;
+    --shadow: 0 1px 3px rgba(16,24,40,.06), 0 8px 24px rgba(16,24,40,.05);
+    /* breakdown colors */
+    --c-cost: #6366f1;
+    --c-pack: #22a3b8;
+    --c-mkt:  #f59e0b;
+    --c-fee:  #ec4899;
+    --c-vat:  #94a3b8;
+    --c-profit: #16a34a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    font-family: 'Sarabun', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    line-height: 1.5;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: 20px 16px 64px; }
+
+  header.app { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; flex-wrap: wrap; }
+  header.app h1 { font-size: 22px; margin: 0; font-weight: 700; letter-spacing: -.2px; }
+  header.app .sub { color: var(--muted); font-size: 14px; margin: 2px 0 18px; }
+  .logo {
+    width: 40px; height: 40px; border-radius: 11px; flex: none;
+    background: linear-gradient(135deg,#6366f1,#4f46e5);
+    display: grid; place-items: center; color: #fff; font-size: 20px;
+    box-shadow: 0 4px 12px rgba(79,70,229,.35);
+  }
+
+  .grid { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 900px) {
+    .grid { grid-template-columns: 1.05fr .95fr; align-items: start; }
+    .sticky { position: sticky; top: 16px; }
+  }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line);
+    border-radius: 16px; padding: 18px; box-shadow: var(--shadow);
+    margin-bottom: 16px;
+  }
+  .card h2 { font-size: 15px; margin: 0 0 14px; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+  .card h2 .num { width: 22px; height: 22px; border-radius: 7px; background: var(--brand-soft); color: var(--brand);
+    display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+
+  label.f { display: block; margin-bottom: 12px; }
+  label.f .lbl { display: block; font-size: 13px; color: var(--muted); margin-bottom: 5px; font-weight: 500; }
+  .row { display: grid; gap: 10px; }
+  .row.c2 { grid-template-columns: 1fr 1fr; }
+  .row.c3 { grid-template-columns: 1fr 1fr 1fr; }
+  @media (max-width: 520px){ .row.c3 { grid-template-columns: 1fr 1fr; } }
+
+  .inp {
+    position: relative; display: flex; align-items: center;
+    border: 1px solid var(--line); border-radius: 10px; background: #fff;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .inp:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+  .inp input {
+    width: 100%; border: 0; outline: 0; background: transparent;
+    padding: 10px 12px; font-size: 15px; font-family: inherit; color: var(--ink);
+    text-align: right;
+  }
+  .inp input.txt { text-align: left; }
+  .inp .unit { padding: 0 12px 0 0; color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .inp .pre { padding: 0 0 0 12px; color: var(--muted); font-size: 13px; }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 4px; }
+  .chip {
+    border: 1px solid var(--line); background: #fff; border-radius: 999px;
+    padding: 7px 14px; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--muted);
+    font-family: inherit; transition: all .12s;
+  }
+  .chip:hover { border-color: var(--brand); color: var(--brand); }
+  .chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+  .hint { font-size: 12px; color: var(--muted); margin-top: -6px; margin-bottom: 12px; }
+  .toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; user-select: none; }
+  .toggle input { display: none; }
+  .switch { width: 42px; height: 24px; border-radius: 999px; background: #cbd5e1; position: relative; transition: background .15s; flex: none; }
+  .switch::after { content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%; background:#fff; transition: transform .15s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+  .toggle input:checked + .switch { background: var(--brand); }
+  .toggle input:checked + .switch::after { transform: translateX(18px); }
+
+  /* Result */
+  .result-hero { text-align: center; padding: 6px 0 12px; }
+  .result-hero .cap { font-size: 13px; color: var(--muted); font-weight: 600; }
+  .result-hero .price { font-size: 44px; font-weight: 700; letter-spacing: -1px; color: var(--brand); line-height: 1.1; margin: 4px 0; }
+  .result-hero .price small { font-size: 20px; font-weight: 600; color: var(--muted); }
+  .result-hero .buffer { font-size: 14px; color: var(--muted); }
+  .result-hero .buffer b { color: var(--ink); font-weight: 700; }
+
+  .bar { display: flex; height: 30px; border-radius: 8px; overflow: hidden; margin: 14px 0 10px; background: #f1f5f9; }
+  .bar span { height: 100%; transition: width .25s; }
+  .legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 16px; font-size: 13px; margin-top: 8px; }
+  .legend .li { display: flex; align-items: center; gap: 7px; }
+  .legend .dot { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+  .legend .li .v { margin-left: auto; font-variant-numeric: tabular-nums; font-weight: 600; }
+  .legend .li .v.neg { color: var(--bad); }
+
+  .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+  .kpi { background: #f8fafc; border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
+  .kpi .k { font-size: 12px; color: var(--muted); font-weight: 600; }
+  .kpi .val { font-size: 22px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .kpi.good .val { color: var(--good); }
+  .kpi.bad .val { color: var(--bad); }
+  .kpi .foot { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  .divider { height: 1px; background: var(--line); margin: 16px 0; }
+
+  .warnbox { background: var(--bad-soft); color: var(--bad); border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 600; margin-top: 10px; }
+  .okbox { background: var(--good-soft); color: #166534; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-top: 10px; }
+
+  .btn {
+    font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer;
+    border-radius: 10px; padding: 11px 16px; border: 1px solid var(--brand);
+    background: var(--brand); color: #fff; transition: filter .12s;
+  }
+  .btn:hover { filter: brightness(1.06); }
+  .btn.ghost { background: #fff; color: var(--brand); }
+  .btn.mini { padding: 6px 10px; font-size: 12px; }
+  .btn.gray { border-color: var(--line); background: #fff; color: var(--muted); }
+  .btn-row { display: flex; gap: 10px; flex-wrap: wrap; }
+
+  table.plist { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.plist th, table.plist td { padding: 9px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  table.plist th { color: var(--muted); font-weight: 600; font-size: 12px; text-align: right; }
+  table.plist th:first-child, table.plist td:first-child { text-align: left; }
+  table.plist td.name { font-weight: 600; }
+  .tbl-scroll { overflow-x: auto; margin: 0 -6px; }
+  .empty { text-align: center; color: var(--muted); padding: 24px; font-size: 14px; }
+  .iconbtn { border: 0; background: none; cursor: pointer; font-size: 15px; padding: 4px 6px; border-radius: 6px; color: var(--muted); }
+  .iconbtn:hover { background: #f1f5f9; color: var(--ink); }
+
+  details.note { margin-top: 14px; border: 1px dashed var(--line); border-radius: 10px; padding: 0 14px; }
+  details.note summary { cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); padding: 12px 0; list-style: none; }
+  details.note summary::-webkit-details-marker { display: none; }
+  details.note summary::before { content: "ⓘ "; }
+  details.note[open] summary { color: var(--brand); }
+  details.note .body { font-size: 13px; color: var(--muted); padding: 0 0 14px; line-height: 1.7; }
+  details.note code { background: #f1f5f9; padding: 1px 6px; border-radius: 5px; font-size: 12px; }
+  .cloud-pill { margin-left:auto; font-size:12px; font-weight:600; padding:6px 12px; border-radius:999px; display:inline-flex; align-items:center; gap:6px; white-space:nowrap; }
+  .cloud-pill.off  { background:#f1f5f9; color:#64748b; }
+  .cloud-pill.wait { background:#fef9c3; color:#854d0e; }
+  .cloud-pill.ok   { background:var(--good-soft); color:#166534; }
+  .cloud-pill.err  { background:var(--bad-soft); color:var(--bad); }
+  .badge { display:inline-block; font-size:11px; font-weight:700; padding:1px 7px; border-radius:999px; background:var(--good-soft); color:#166534; margin-left:6px; vertical-align:middle; }
+  table.plist tr.sel td { background: var(--brand-soft); }
+  table.plist tr.sel td.name { color: var(--brand); }
+  .feeinp { display:inline-flex; align-items:center; gap:4px; justify-content:flex-end; }
+  .feeinp i { font-style:normal; color:var(--muted); font-size:12px; }
+  .chfee { width:56px; border:1px solid var(--line); border-radius:7px; padding:5px 7px; font-family:inherit; font-size:13px; text-align:right; background:#fff; color:var(--ink); -moz-appearance:textfield; }
+  .chfee:focus { outline:0; border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft); }
+  .chfee::-webkit-outer-spin-button, .chfee::-webkit-inner-spin-button { -webkit-appearance:none; margin:0; }
+  .chfee.chactual { width:66px; }
+  table.plist td.c-aprofit { line-height:1.25; }
+  /* platform chips colored by brand */
+  .chip::before { content:""; display:inline-block; width:9px; height:9px; border-radius:50%; background:var(--chc,#cbd5e1); margin-right:7px; vertical-align:middle; }
+  .chip.on { background:var(--chc,var(--brand)); border-color:var(--chc,var(--brand)); color:#fff; }
+  .chip.on::before { background:#fff; }
+  .chip:hover { border-color:var(--chc,var(--brand)); }
+  /* per-platform input grid */
+  #pgrid { margin: 2px 0 4px; }
+  table.pgrid-table { width:100%; border-collapse:separate; border-spacing:0; min-width:340px; }
+  table.pgrid-table th, table.pgrid-table td { padding:5px; text-align:center; }
+  table.pgrid-table th.pg-head { color:#fff; font-size:12px; font-weight:700; padding:8px 6px; border-radius:9px 9px 0 0; }
+  table.pgrid-table td.pg-label { text-align:left; font-size:12px; color:var(--muted); font-weight:600; white-space:nowrap; padding-right:8px; }
+  table.pgrid-table td.pg-focus { background-color: var(--brand-soft); }
+  table.pgrid-table th.pg-focus { box-shadow: inset 0 -3px 0 rgba(0,0,0,.28); }
+  table.pgrid-table .feeinp { justify-content:center; }
+  table.pgrid-table .chfee { width:100%; max-width:74px; }
+  table.plist tr.prod-head td { background:#f1f5f9; border-top:2px solid #cbd5e1; font-weight:700; padding-top:11px; padding-bottom:11px; }
+  table.plist tr.prod-head td.name { color:var(--ink); font-size:14px; }
+  table.plist tr.plat-row td.plat { padding-left:22px; color:var(--muted); font-weight:600; }
+  .chartwrap { margin-top: 6px; }
+  .chartwrap svg { width:100%; height:auto; display:block; }
+  .foot-note { text-align:center; color: var(--muted); font-size: 12px; margin-top: 22px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="app">
+    <div class="logo">฿</div>
+    <div>
+      <h1>คำนวณต้นทุน &amp; ตั้งราคาสินค้า</h1>
+    </div>
+    <span id="cloudStatus" class="cloud-pill off" title="สถานะการซิงก์ข้อมูลกับ Firebase">● ออฟไลน์</span>
+  </header>
+  <p class="sub">ใส่ต้นทุนและกำไรที่อยากได้ → ระบบคำนวณราคาขายที่ควรตั้ง พร้อมจุดคุ้มทุนต่อเดือน (รองรับ VAT 7% สำหรับผู้จด VAT)</p>
+
+  <div class="grid">
+    <!-- ================= INPUT COLUMN ================= -->
+    <div>
+      <!-- Channel + product -->
+      <div class="card">
+        <h2><span class="num">1</span> สินค้า &amp; ช่องทางขาย</h2>
+        <label class="f">
+          <span class="lbl">ชื่อสินค้า</span>
+          <div class="inp"><input id="name" class="txt" type="text" placeholder="เช่น เซรั่มบำรุงผิว 30ml" /></div>
+        </label>
+        <span class="lbl" style="font-size:13px;color:var(--muted);font-weight:500;">เลือกแพลตฟอร์มที่จะดูผลละเอียด (แถบขวา)</span>
+        <div class="chips" id="channels"></div>
+        <p class="hint">* กรอกค่าของแต่ละแพลตฟอร์มได้ในตาราง “ค่าแต่ละแพลตฟอร์ม” ด้านล่าง</p>
+      </div>
+
+      <!-- Costs (shared across platforms) -->
+      <div class="card">
+        <h2><span class="num">2</span> ต้นทุนต่อชิ้น (บาท) <span style="font-weight:500;color:var(--muted);font-size:12px;">(ใช้ร่วมทุกแพลตฟอร์ม)</span></h2>
+        <div class="row c2">
+          <label class="f">
+            <span class="lbl">ต้นทุนสินค้า</span>
+            <div class="inp"><input id="productCost" type="number" min="0" step="0.01" value="100" /><span class="unit">บาท</span></div>
+          </label>
+          <label class="f">
+            <span class="lbl">ค่าบรรจุภัณฑ์</span>
+            <div class="inp"><input id="packaging" type="number" min="0" step="0.01" value="5" /><span class="unit">บาท</span></div>
+          </label>
+        </div>
+        <div class="row c2">
+          <label class="f">
+            <span class="lbl">ต้นทุนอื่น (แรงแพ็ค ฯลฯ)</span>
+            <div class="inp"><input id="otherVar" type="number" min="0" step="0.01" value="2" /><span class="unit">บาท</span></div>
+          </label>
+          <label class="f">
+            <span class="lbl">เผื่อสินค้าตีกลับ/เสียหาย (%)</span>
+            <div class="inp"><input id="returnRate" type="number" min="0" step="0.1" value="3" /><span class="unit">%</span></div>
+          </label>
+        </div>
+      </div>
+
+      <!-- Per-platform inputs (independent per channel) -->
+      <div class="card">
+        <h2><span class="num">3</span> ค่าแต่ละแพลตฟอร์ม <span style="font-weight:500;color:var(--muted);font-size:12px;">(แยกกันแต่ละที่)</span></h2>
+        <div id="pgrid" class="tbl-scroll"></div>
+        <p class="hint" style="margin-bottom:0;">กรอกค่าของแต่ละแพลตฟอร์มได้เลย — ระบบจำค่าล่าสุดให้ • คอลัมน์ที่เลือก (ปุ่มด้านบน) คือแพลตฟอร์มที่แสดงผลละเอียดทางขวา</p>
+      </div>
+
+      <!-- VAT & profit -->
+      <div class="card">
+        <h2><span class="num">4</span> VAT &amp; กำไรที่ต้องการ</h2>
+        <div class="row c2">
+          <label class="f">
+            <span class="lbl">VAT</span>
+            <div class="inp"><input id="vatRate" type="number" min="0" step="0.1" value="7" /><span class="unit">%</span></div>
+          </label>
+          <label class="f">
+            <span class="lbl">กำไรที่ต้องการ/ชิ้น</span>
+            <div class="inp"><input id="desiredProfit" type="number" min="0" step="0.01" value="50" /><span class="unit">บาท</span></div>
+          </label>
+        </div>
+        <label class="toggle" style="margin:2px 0 6px;">
+          <input type="checkbox" id="vatCredit" checked />
+          <span class="switch"></span>
+          <span style="font-size:13px;font-weight:500;">หักภาษีซื้อ (Input VAT) — คำนวณ VAT แบบส่งสุทธิ</span>
+        </label>
+        <p class="hint">เปิดไว้ถ้าคุณจด VAT และมีใบกำกับภาษีซื้อ (จ่าย VAT เฉพาะส่วนต่างมูลค่าเพิ่ม) — ปิดถ้าอยากคิด VAT 7% เต็มจากราคาขาย</p>
+      </div>
+
+      <!-- Fixed & buffer -->
+      <div class="card">
+        <h2><span class="num">5</span> ต้นทุนคงที่ต่อเดือน &amp; ราคาเผื่อ</h2>
+        <label class="f">
+          <span class="lbl">ต้นทุนคงที่รวมต่อเดือน (เช่า, เงินเดือน, ค่าระบบ ฯลฯ)</span>
+          <div class="inp"><input id="fixedMonthly" type="number" min="0" step="1" value="20000" /><span class="unit">บาท/เดือน</span></div>
+        </label>
+        <label class="f">
+          <span class="lbl">บวกเผื่อต่อรอง/โปรโมชั่น</span>
+          <div class="inp"><input id="bufferPct" type="number" min="0" step="0.5" value="10" /><span class="unit">%</span></div>
+        </label>
+      </div>
+    </div>
+
+    <!-- ================= RESULT COLUMN ================= -->
+    <div>
+      <div class="sticky">
+        <!-- Recommended price -->
+        <div class="card">
+          <h2><span class="num">✓</span> ราคาขายที่ควรตั้ง</h2>
+          <div class="result-hero">
+            <div class="cap">ราคาขายที่ควรตั้ง (รวม VAT)</div>
+            <div class="price" id="recPrice">–</div>
+            <div class="buffer">ราคาเผื่อต่อรอง: <b id="bufferPrice">–</b></div>
+          </div>
+
+          <div class="bar" id="bar"></div>
+          <div class="legend" id="legend"></div>
+
+          <div id="marginWarn"></div>
+        </div>
+
+        <!-- Break-even -->
+        <div class="card">
+          <h2><span class="num">📊</span> จุดคุ้มทุน &amp; กำไร</h2>
+          <div class="kpis">
+            <div class="kpi">
+              <div class="k">กำไรต่อชิ้น</div>
+              <div class="val" id="cmUnit">–</div>
+              <div class="foot" id="marginPct">– ของราคาขาย</div>
+            </div>
+            <div class="kpi">
+              <div class="k">ขายกี่ชิ้น/เดือน ถึงไม่ขาดทุน</div>
+              <div class="val" id="breakeven">–</div>
+              <div class="foot">คุ้มต้นทุนคงที่</div>
+            </div>
+          </div>
+          <div class="divider"></div>
+          <label class="f" style="margin-bottom:6px;">
+            <span class="lbl">ถ้าตั้งเป้าขายได้ (ชิ้น/เดือน)</span>
+            <div class="inp"><input id="targetQty" type="number" min="0" step="1" value="300" /><span class="unit">ชิ้น</span></div>
+          </label>
+          <div class="kpi good" id="netProfitBox" style="margin-top:4px;">
+            <div class="k">กำไรสุทธิต่อเดือน (หลังหักต้นทุนคงที่)</div>
+            <div class="val" id="netProfit">–</div>
+          </div>
+        </div>
+
+        <!-- Actual price result (focused platform) -->
+        <div class="card">
+          <h2><span class="num">💡</span> เช็กกำไรจริง — <span id="focusName" style="color:var(--brand)"></span></h2>
+          <div id="actualResult"></div>
+        </div>
+
+        <!-- Save -->
+        <div class="btn-row">
+          <button class="btn" id="saveBtn">💾 บันทึกสินค้านี้</button>
+          <button class="btn ghost" id="newBtn">+ สินค้าใหม่</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cross-platform compare -->
+  <div class="card" style="margin-top:16px;">
+    <h2><span class="num">⚖️</span> เทียบราคาข้ามแพลตฟอร์ม</h2>
+    <p class="hint" style="margin-top:-6px;">แก้ค่าการตลาด % / ค่าธรรมเนียม % / ค่าชำระเงิน % / ค่าส่ง / ราคาขายจริง ของแต่ละแพลตฟอร์มได้ตรงในตาราง (แยกกันแต่ละที่ ระบบจำค่าล่าสุดให้) — “ราคาที่ควรตั้ง” คือราคาที่จะได้กำไรตามเป้า ส่วน “กำไรจริง” คิดจากราคาขายจริงที่กรอก</p>
+    <div class="tbl-scroll">
+      <table class="plist" id="compareTable">
+        <thead>
+          <tr>
+            <th>แพลตฟอร์ม</th>
+            <th>ค่าการตลาด %</th>
+            <th>ค่าธรรมเนียม %</th>
+            <th>ค่าชำระเงิน %</th>
+            <th>ค่าส่ง (บาท)</th>
+            <th>ราคาที่ควรตั้ง</th>
+            <th>ราคาเผื่อ</th>
+            <th>ราคาขายจริง</th>
+            <th>กำไรจริง/ชิ้น</th>
+            <th>คุ้มทุน/เดือน</th>
+          </tr>
+        </thead>
+        <tbody id="compareBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Break-even chart -->
+  <div class="card">
+    <h2><span class="num">📈</span> กราฟจุดคุ้มทุน — ยิ่งขายยิ่งกำไร</h2>
+    <div id="chartMsg"></div>
+    <div id="chartWrap" class="chartwrap"></div>
+    <p class="hint" style="margin-top:8px;margin-bottom:0;">พื้นที่แดง = ยังขาดทุน • เส้นตัดศูนย์ = จุดคุ้มทุน • พื้นที่เขียว = เริ่มมีกำไร • จุดน้ำเงิน = เป้ายอดขายที่ตั้งไว้</p>
+  </div>
+
+  <!-- Saved products -->
+  <div class="card" style="margin-top:16px;">
+    <h2 style="justify-content:space-between;">
+      <span style="display:flex;align-items:center;gap:8px;"><span class="num">📁</span> รายการสินค้าที่บันทึก</span>
+      <button class="btn gray mini" id="exportBtn">⬇ Export CSV</button>
+    </h2>
+    <p class="hint" style="margin-top:-8px;">แต่ละรายการเก็บค่าครบทุกแพลตฟอร์ม — กดไอคอน ✎ เพื่อโหลดข้อมูลทั้งหมดกลับมา</p>
+    <div class="tbl-scroll">
+      <table class="plist" id="plist">
+        <thead>
+          <tr>
+            <th>สินค้า / แพลตฟอร์ม</th>
+            <th>ค่าธรรมเนียม</th>
+            <th>ราคาที่ควรตั้ง</th>
+            <th>ราคาเผื่อ</th>
+            <th>ราคาขายจริง</th>
+            <th>กำไรจริง/ชิ้น</th>
+            <th>คุ้มทุน/เดือน</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="plistBody"></tbody>
+      </table>
+    </div>
+    <div class="empty" id="emptyList">ยังไม่มีสินค้าที่บันทึก — กรอกข้อมูลแล้วกด “บันทึกสินค้านี้”</div>
+  </div>
+
+  <details class="note">
+    <summary>สูตรการคำนวณ &amp; ต้นทุนอื่นที่ควรพิจารณาเพิ่ม</summary>
+    <div class="body">
+      <b>สูตรตั้งราคา:</b> ราคาขาย = (ต้นทุนบาท + กำไรที่ต้องการ − เครดิต VAT ซื้อ) ÷ (1 − %การตลาด − %แพลตฟอร์ม − %ชำระเงิน − %VAT)<br>
+      เพราะค่าการตลาด/ค่าธรรมเนียม/VAT คิดเป็น % ของ<b>ราคาขาย</b> ไม่ใช่ของต้นทุน จึงต้องหารกลับ ไม่ใช่บวกเพิ่มจากต้นทุน<br><br>
+      <b>จุดคุ้มทุน:</b> จำนวนชิ้น/เดือน = ต้นทุนคงที่ต่อเดือน ÷ กำไรต่อชิ้น<br><br>
+      <b>ต้นทุนอื่นที่อาจต้องเพิ่ม:</b> ค่าคอมมิชชั่น affiliate/KOL, ส่วนลด/โค้ด/คูปอง, ค่าเข้าร่วมแคมเปญ/Flash Sale, ค่าถ่ายรูป-คอนเทนต์, ค่าธรรมเนียมถอนเงินออกจากแพลตฟอร์ม, ภาษีเงินได้ (คนละตัวกับ VAT), ต้นทุนเงินทุน/ดอกเบี้ย, ค่าขนส่งขาเข้า+อากรนำเข้า
+    </div>
+  </details>
+
+  <p class="foot-note">ข้อมูลบันทึกไว้ในเบราว์เซอร์นี้เท่านั้น (localStorage) — ไม่ได้ส่งขึ้นเซิร์ฟเวอร์</p>
+</div>
+
+<script src="firebase-config.js"></script>
+<script>
+(function(){
+  "use strict";
+  const $ = id => document.getElementById(id);
+  const num = id => { const v = parseFloat($(id).value); return isFinite(v) ? v : 0; };
+  const fmt = (n, d=2) => {
+    if (!isFinite(n)) return "–";
+    return n.toLocaleString('th-TH', {minimumFractionDigits:d, maximumFractionDigits:d});
+  };
+  const fmtBaht = n => "฿" + fmt(n, 2);
+  const fmtInt = n => isFinite(n) ? Math.round(n).toLocaleString('th-TH') : "–";
+  const ceilUnits = x => isFinite(x) ? Math.ceil(x - 1e-6) : NaN; // round up, ignore float noise
+  const pnum = v => { const n = parseFloat(v); return isFinite(n) ? n : 0; };
+
+  // Shared fields (same across platforms) that live as normal inputs and drive re-render.
+  const inputIds = ["name","productCost","packaging","otherVar","returnRate",
+    "vatRate","desiredProfit","fixedMonthly","bufferPct","targetQty"];
+
+  let editingId = null; // id of product being edited, null = new
+
+  // ---------- core math ----------
+  // Returns full breakdown for a given selling price P (VAT-inclusive).
+  // pfOverride/payOverride let us compute the same product on another platform's fees.
+  function breakdownAt(P, m, pfOverride, payOverride){
+    const pf  = (pfOverride  != null) ? pfOverride  : m.pfPct;
+    const pay = (payOverride != null) ? payOverride : m.payPct;
+    const marketing = P * m.mPct;
+    const platform  = P * pf;
+    const payment   = P * pay;
+    let netVAT;
+    if (m.vatCredit){
+      // VAT on value added = vatRate * (P - vatable purchases); vatable = product+pack+ship + marketing+platform+payment
+      netVAT = m.vRate * (P - m.vatableBaht - (marketing + platform + payment));
+    } else {
+      netVAT = m.vRate * P; // full output VAT on inclusive price
+    }
+    const profit = P - m.baseBaht - marketing - platform - payment - netVAT;
+    return { marketing, platform, payment, netVAT, base: m.baseBaht, profit };
+  }
+
+  function getModel(){
+    const productCost = num("productCost");
+    const packaging   = num("packaging");
+    const otherVar    = num("otherVar");
+    const returnRate  = num("returnRate")/100;
+
+    // Per-platform values come from the focused platform's stored settings.
+    const cf = channelFees[currentChannel()] || { fee:0, pay:0, ship:0, mkt:0, actual:"" };
+    const shipCost = pnum(cf.ship);
+    const returnCost  = returnRate * (productCost + packaging + shipCost);
+    const baseBaht    = productCost + packaging + shipCost + otherVar + returnCost;
+    const vatableBaht = productCost + packaging + shipCost; // costs that carry input VAT
+
+    const mPct   = pnum(cf.mkt)/100;
+    const pfPct  = pnum(cf.fee)/100;
+    const payPct = pnum(cf.pay)/100;
+    const vRatePct = num("vatRate");
+    const vRate  = vRatePct/(100 + vRatePct); // VAT portion of a VAT-inclusive price
+    const vatCredit = $("vatCredit").checked;
+
+    const desiredProfit = num("desiredProfit");
+    const fixedMonthly  = num("fixedMonthly");
+    const bufferPct     = num("bufferPct")/100;
+
+    const s = mPct + pfPct + payPct;
+
+    // Solve recommended price for target profit
+    let recPrice;
+    if (vatCredit){
+      const denom = (1 - s) * (1 - vRate);
+      recPrice = denom > 0 ? (desiredProfit + baseBaht - vRate*vatableBaht) / denom : NaN;
+    } else {
+      const denom = 1 - s - vRate;
+      recPrice = denom > 0 ? (desiredProfit + baseBaht) / denom : NaN;
+    }
+
+    return { productCost, packaging, shipCost, otherVar, returnRate, returnCost, baseBaht, vatableBaht,
+      mPct, pfPct, payPct, vRate, vatCredit, desiredProfit, fixedMonthly, bufferPct, s,
+      recPrice, actual: cf.actual };
+  }
+
+  // Cost base (baht) for a given own-shipping value — used to compare platforms that each
+  // absorb a different shipping cost. Shipping is a VAT-claimable input, so it enters vatableBaht too.
+  function baseFor(m, ship){
+    const vatableBaht = m.productCost + m.packaging + ship;
+    const returnCost  = m.returnRate * (m.productCost + m.packaging + ship);
+    const baseBaht    = m.productCost + m.packaging + ship + m.otherVar + returnCost;
+    return { baseBaht, vatableBaht };
+  }
+
+  // ---------- cross-platform compare ----------
+  const CHANNELS = [
+    { name: "TikTok",  fee: 8,  pay: 3, ship: 33, mkt: 33.3, actual: "", color: "#111827" },
+    { name: "Shopee",  fee: 20, pay: 3, ship: 33, mkt: 33.3, actual: "", color: "#ee4d2d" },
+    { name: "Lazada",  fee: 9,  pay: 3, ship: 33, mkt: 33.3, actual: "", color: "#2d2e82" },
+    { name: "Page365", fee: 0,  pay: 3, ship: 33, mkt: 33.3, actual: "", color: "#0ea5a5" },
+  ];
+
+  // Per-platform settings the user edits (marketing %, fee %, payment %, own-shipping ฿).
+  // Each platform remembers its own values; the last value entered becomes its default. Persisted.
+  const CH_KEY = "channelFees_v1";
+  const channelFees = (() => {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem(CH_KEY)) || {}; } catch(e){}
+    const o = {};
+    CHANNELS.forEach(c => {
+      const s = saved[c.name] || {};
+      o[c.name] = { fee: s.fee ?? c.fee, pay: s.pay ?? c.pay, ship: s.ship ?? c.ship, mkt: s.mkt ?? c.mkt, actual: s.actual ?? c.actual };
+    });
+    return o;
+  })();
+  const persistChannelFees = () => { try { localStorage.setItem(CH_KEY, JSON.stringify(channelFees)); } catch(e){} };
+
+  // Shared fields — same value across every platform; last value entered persists as the default.
+  const GLOBAL_KEY = "globalFields_v1";
+  const SHARED_FIELDS = ["name","productCost","packaging","otherVar","returnRate","vatRate",
+    "desiredProfit","fixedMonthly","bufferPct","targetQty"];
+  const persistGlobal = () => {
+    const o = {};
+    SHARED_FIELDS.forEach(id => { o[id] = $(id).value; });
+    o.vatCredit = $("vatCredit").checked;
+    try { localStorage.setItem(GLOBAL_KEY, JSON.stringify(o)); } catch(e){}
+  };
+  const restoreGlobal = () => {
+    let o = {};
+    try { o = JSON.parse(localStorage.getItem(GLOBAL_KEY)) || {}; } catch(e){}
+    SHARED_FIELDS.forEach(id => { if (o[id] != null) $(id).value = o[id]; });
+    if (typeof o.vatCredit === "boolean") $("vatCredit").checked = o.vatCredit;
+  };
+
+  // Recommended price to hit target profit, for arbitrary platform/payment fee.
+  function priceForChannel(m, pf, pay){
+    const s = m.mPct + pf + pay;
+    if (m.vatCredit){
+      const d = (1 - s) * (1 - m.vRate);
+      return d > 0 ? (m.desiredProfit + m.baseBaht - m.vRate*m.vatableBaht) / d : NaN;
+    }
+    const d = 1 - s - m.vRate;
+    return d > 0 ? (m.desiredProfit + m.baseBaht) / d : NaN;
+  }
+
+  // Build the compare table rows once (channels are fixed). Fees are editable inputs;
+  // only the computed cells are updated on each render, so typing never loses focus.
+  function buildCompareSkeleton(){
+    $("compareBody").innerHTML = CHANNELS.map(ch => `
+      <tr data-ch="${escapeHtml(ch.name)}">
+        <td class="name"><span>${escapeHtml(ch.name)}</span><span class="badge cbadge" style="display:none">ตั้งได้ต่ำสุด</span></td>
+        <td><span class="feeinp"><input type="number" class="chfee" data-ch="${escapeHtml(ch.name)}" data-k="mkt" min="0" step="0.1" inputmode="decimal"><i>%</i></span></td>
+        <td><span class="feeinp"><input type="number" class="chfee" data-ch="${escapeHtml(ch.name)}" data-k="fee" min="0" step="0.1" inputmode="decimal"><i>%</i></span></td>
+        <td><span class="feeinp"><input type="number" class="chfee" data-ch="${escapeHtml(ch.name)}" data-k="pay" min="0" step="0.1" inputmode="decimal"><i>%</i></span></td>
+        <td><span class="feeinp"><input type="number" class="chfee" data-ch="${escapeHtml(ch.name)}" data-k="ship" min="0" step="1" inputmode="decimal"><i>฿</i></span></td>
+        <td class="c-price"><b>–</b></td>
+        <td class="c-buffer">–</td>
+        <td><span class="feeinp"><input type="number" class="chfee chactual" data-ch="${escapeHtml(ch.name)}" data-k="actual" min="0" step="1" inputmode="decimal" placeholder="–"><i>฿</i></span></td>
+        <td class="c-aprofit">–</td>
+        <td class="c-abe">–</td>
+      </tr>`).join("");
+    $("compareBody").addEventListener("input", onCompareFeeEdit);
+  }
+
+  // A per-platform input changed (from the input grid OR the compare table — both share this).
+  function onCompareFeeEdit(e){
+    const inp = e.target.closest("input.chfee");
+    if (!inp) return;
+    const ch = inp.dataset.ch, k = inp.dataset.k;
+    const cur = channelFees[ch] || { fee: 0, pay: 0, ship: 0, mkt: 0, actual: "" };
+    if (k === "actual"){
+      channelFees[ch] = Object.assign({}, cur, { actual: inp.value });   // raw string; empty allowed
+    } else if (k === "roas"){
+      const r = parseFloat(inp.value);
+      if (!isFinite(r) || r <= 0) return;                                 // marketing% = 100 / ROAS
+      channelFees[ch] = Object.assign({}, cur, { mkt: 100/r });
+    } else {
+      const val = parseFloat(inp.value);
+      if (!isFinite(val)) return;                 // empty/incomplete (e.g. "12.") — keep previous value
+      channelFees[ch] = Object.assign({}, cur, { [k]: val });
+    }
+    persistChannelFees();
+    render();
+  }
+
+  // Platform chips (focus selector) + the colored per-platform input grid — both built from CHANNELS.
+  function buildChips(){
+    $("channels").innerHTML = CHANNELS.map((c,i) =>
+      `<button class="chip${i===0?" on":""}" data-ch="${escapeHtml(c.name)}" style="--chc:${c.color}">${escapeHtml(c.name)}</button>`).join("");
+  }
+
+  const GRID_ROWS = [
+    { k:"mkt",    label:"ค่าการตลาด %", suf:"%", step:"0.1" },
+    { k:"roas",   label:"ROAS",         suf:"x", step:"0.1" },
+    { k:"fee",    label:"ค่าธรรมเนียม %", suf:"%", step:"0.1" },
+    { k:"pay",    label:"ค่าชำระเงิน %",  suf:"%", step:"0.1" },
+    { k:"ship",   label:"ค่าส่ง (บาท)",   suf:"฿", step:"1" },
+    { k:"actual", label:"ราคาขายจริง",   suf:"฿", step:"1" },
+  ];
+  function buildGrid(){
+    const head = `<tr><th class="pg-corner"></th>${CHANNELS.map(c =>
+      `<th class="pg-head" data-col="${escapeHtml(c.name)}" style="background:${c.color}">${escapeHtml(c.name)}</th>`).join("")}</tr>`;
+    const body = GRID_ROWS.map(r => `<tr>
+      <td class="pg-label">${r.label}</td>
+      ${CHANNELS.map(c => `<td data-col="${escapeHtml(c.name)}"><span class="feeinp"><input type="number" class="chfee" data-ch="${escapeHtml(c.name)}" data-k="${r.k}" min="0" step="${r.step}" inputmode="decimal"${r.k==="actual"?' placeholder="–"':''}><i>${r.suf}</i></span></td>`).join("")}
+    </tr>`).join("");
+    $("pgrid").innerHTML = `<table class="pgrid-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+    $("pgrid").addEventListener("input", onCompareFeeEdit);
+  }
+
+  // Refresh the input grid values from channelFees (skip the field being edited); highlight focused column.
+  function renderGrid(){
+    const active = document.activeElement;
+    document.querySelectorAll("#pgrid input.chfee").forEach(inp => {
+      if (inp === active) return;
+      const cf = channelFees[inp.dataset.ch] || {};
+      const k = inp.dataset.k;
+      if (k === "actual") inp.value = cf.actual || "";
+      else if (k === "roas"){ const mk = pnum(cf.mkt); inp.value = mk>0 ? +(100/mk).toFixed(2) : ""; }
+      else inp.value = +(pnum(cf[k])).toFixed(2);
+    });
+    const focus = currentChannel();
+    document.querySelectorAll("#pgrid [data-col]").forEach(el =>
+      el.classList.toggle("pg-focus", el.dataset.col === focus));
+  }
+
+  function renderCompare(m){
+    const sel = currentChannel();
+
+    const data = {}; let best = Infinity;
+    CHANNELS.forEach(ch => {
+      const isSel = ch.name === sel;
+      const cf = channelFees[ch.name] || { fee: ch.fee, pay: ch.pay, ship: ch.ship, mkt: ch.mkt, actual: "" };
+      const mktVal  = pnum(cf.mkt);
+      const feeVal  = pnum(cf.fee);
+      const payVal  = pnum(cf.pay);
+      const shipVal = pnum(cf.ship);
+      const actualStr = cf.actual ?? "";
+      const b  = baseFor(m, shipVal);                    // this platform's cost base (own shipping)
+      const cm = Object.assign({}, m, { baseBaht: b.baseBaht, vatableBaht: b.vatableBaht,
+                                        mPct: mktVal/100, pfPct: feeVal/100, payPct: payVal/100 });
+      const price = priceForChannel(cm, cm.pfPct, cm.payPct);
+
+      // Actual profit at this platform's own actual price
+      const ap = parseFloat(actualStr);
+      let aProfit = NaN, aMargin = NaN, aBe = NaN;
+      if (isFinite(ap) && ap > 0){
+        aProfit = breakdownAt(ap, cm).profit;
+        aMargin = aProfit / ap * 100;
+        aBe = aProfit > 0 ? ceilUnits(m.fixedMonthly / aProfit) : NaN;
+      }
+      data[ch.name] = { isSel, mktVal, feeVal, payVal, shipVal, actualStr,
+        price, buffer: price*(1+m.bufferPct), aProfit, aMargin, aBe };
+      if (isFinite(price) && price < best) best = price;
+    });
+
+    const active = document.activeElement;
+    $("compareBody").querySelectorAll("tr").forEach(tr => {
+      const d = data[tr.dataset.ch];
+      if (!d) return;
+      tr.classList.toggle("sel", d.isSel);
+      tr.querySelector(".cbadge").style.display =
+        (isFinite(d.price) && Math.abs(d.price - best) < 1e-6) ? "" : "none";
+      tr.querySelectorAll("input.chfee").forEach(inp => {
+        if (inp === active) return;               // don't overwrite the field being typed in
+        const k = inp.dataset.k;
+        if (k === "actual"){ inp.value = d.actualStr || ""; return; }
+        const v = k === "mkt" ? d.mktVal : k === "fee" ? d.feeVal : k === "pay" ? d.payVal : d.shipVal;
+        inp.value = isFinite(v) ? +(+v).toFixed(2) : "";
+      });
+      tr.querySelector(".c-price b").textContent = isFinite(d.price) ? fmtBaht(d.price) : "–";
+      tr.querySelector(".c-buffer").textContent  = isFinite(d.buffer) ? fmtBaht(d.buffer) : "–";
+      const ap = tr.querySelector(".c-aprofit");
+      if (isFinite(d.aProfit)){
+        ap.innerHTML = `<b>${fmtBaht(d.aProfit)}</b><br><span style="font-size:11px;color:var(--muted)">${fmt(d.aMargin,1)}%</span>`;
+        ap.style.color = d.aProfit < 0 ? "var(--bad)" : "var(--good)";
+      } else { ap.innerHTML = "–"; ap.style.color = ""; }
+      tr.querySelector(".c-abe").textContent = isFinite(d.aBe) ? fmtInt(d.aBe) + " ชิ้น" : "–";
+    });
+  }
+
+  // ---------- break-even chart ----------
+  function niceCeil(x){
+    if (!isFinite(x) || x <= 0) return 10;
+    const b = Math.pow(10, Math.floor(Math.log10(x)));
+    const f = x / b;
+    const nice = f<=1?1 : f<=2?2 : f<=2.5?2.5 : f<=5?5 : 10;
+    return nice * b;
+  }
+
+  function renderChart(m){
+    const P = m.recPrice;
+    const cm = (isFinite(P) && P > 0) ? breakdownAt(P, m).profit : NaN;
+    const fixed = m.fixedMonthly;
+    const targetQty = num("targetQty");
+    const wrap = $("chartWrap"), msg = $("chartMsg");
+
+    if (!isFinite(cm) || cm <= 0){
+      wrap.innerHTML = "";
+      msg.innerHTML = `<div class="warnbox">กำไรต่อชิ้นติดลบหรือเป็นศูนย์ — ยิ่งขายยิ่งขาดทุน ต้องปรับราคา/ต้นทุนก่อน</div>`;
+      return;
+    }
+    msg.innerHTML = "";
+
+    const be = fixed > 0 ? fixed/cm : 0;
+    let xMax = niceCeil(Math.max(be, targetQty||0, 1) * 1.8);
+    if (xMax <= be) xMax = niceCeil(be * 1.5) || be + 10;
+
+    const yAt = q => q*cm - fixed;
+    const yMaxVal = yAt(xMax), yMinVal = yAt(0);
+    const W=640, H=300, L=70, Rr=20, T=20, Bm=46;
+    const px = q => L + (q/xMax)*(W-L-Rr);
+    const rng = (yMaxVal - yMinVal) || 1;
+    const py = v => T + (yMaxVal - v)/rng*(H-T-Bm);
+    const zeroY = py(0);
+    const x0=px(0), xE=px(be), xM=px(xMax);
+    const yBottom=py(yMinVal), yTop=py(yMaxVal);
+    const tq = Math.min(Math.max(targetQty||0, 0), xMax);
+    const tx=px(tq), ty=py(yAt(tq));
+
+    let s = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" font-family="Sarabun, sans-serif">`;
+    s += `<line x1="${L}" y1="${T}" x2="${L}" y2="${H-Bm}" stroke="#e5e7eb"/>`;
+    s += `<line x1="${L}" y1="${H-Bm}" x2="${W-Rr}" y2="${H-Bm}" stroke="#e5e7eb"/>`;
+    s += `<polygon points="${x0},${zeroY} ${x0},${yBottom} ${xE},${zeroY}" fill="#fecaca" opacity="0.65"/>`;
+    s += `<polygon points="${xE},${zeroY} ${xM},${yTop} ${xM},${zeroY}" fill="#bbf7d0" opacity="0.7"/>`;
+    s += `<line x1="${L}" y1="${zeroY}" x2="${W-Rr}" y2="${zeroY}" stroke="#94a3b8" stroke-dasharray="4 4"/>`;
+    s += `<line x1="${x0}" y1="${yBottom}" x2="${xM}" y2="${yTop}" stroke="#4f46e5" stroke-width="2.5"/>`;
+    if (be > 0){
+      s += `<line x1="${xE}" y1="${zeroY}" x2="${xE}" y2="${H-Bm}" stroke="#16a34a" stroke-dasharray="3 3"/>`;
+      s += `<circle cx="${xE}" cy="${zeroY}" r="4.5" fill="#16a34a"/>`;
+      s += `<text x="${xE}" y="${zeroY-9}" text-anchor="middle" font-size="11" fill="#166534" font-weight="700">คุ้มทุน ${fmtInt(ceilUnits(be))} ชิ้น</text>`;
+    }
+    s += `<line x1="${tx}" y1="${ty}" x2="${tx}" y2="${H-Bm}" stroke="#6366f1" stroke-dasharray="3 3" opacity="0.55"/>`;
+    s += `<circle cx="${tx}" cy="${ty}" r="5" fill="#4f46e5"/>`;
+    s += `<text x="${tx}" y="${ty-10}" text-anchor="middle" font-size="11" fill="#4f46e5" font-weight="700">เป้า ${fmtInt(tq)} → ${fmtBaht(yAt(tq))}</text>`;
+    // y labels
+    s += `<text x="${L-8}" y="${zeroY+4}" text-anchor="end" font-size="10" fill="#6b7280">0</text>`;
+    s += `<text x="${L-8}" y="${yTop+9}" text-anchor="end" font-size="10" fill="#6b7280">${fmtInt(yMaxVal)}</text>`;
+    s += `<text x="${L-8}" y="${yBottom}" text-anchor="end" font-size="10" fill="#6b7280">${fmtInt(yMinVal)}</text>`;
+    // x labels
+    s += `<text x="${x0}" y="${H-Bm+16}" text-anchor="start" font-size="10" fill="#6b7280">0</text>`;
+    s += `<text x="${xM}" y="${H-Bm+16}" text-anchor="end" font-size="10" fill="#6b7280">${fmtInt(xMax)}</text>`;
+    // axis titles
+    s += `<text x="${(L+W-Rr)/2}" y="${H-8}" text-anchor="middle" font-size="11" fill="#6b7280">จำนวนที่ขายได้ (ชิ้น/เดือน)</text>`;
+    s += `<text x="14" y="${T-4}" font-size="11" fill="#6b7280">กำไรสุทธิ/เดือน (บาท)</text>`;
+    s += `</svg>`;
+    wrap.innerHTML = s;
+  }
+
+  // ---------- render ----------
+  function render(){
+    const m = getModel();
+    persistGlobal();
+    $("focusName").textContent = currentChannel();
+    const P = m.recPrice;
+    const valid = isFinite(P) && P > 0;
+
+    $("recPrice").innerHTML = valid ? (fmtBaht(P).replace('฿','฿ ')) : "ตั้งค่าไม่ได้";
+    $("bufferPrice").textContent = valid ? fmtBaht(P * (1 + m.bufferPct)) : "–";
+
+    const bd = valid ? breakdownAt(P, m) : null;
+
+    // breakdown bar + legend
+    const segs = bd ? [
+      {label:"ต้นทุนสินค้า", val: m.productCost, color:"var(--c-cost)"},
+      {label:"บรรจุ/ส่ง/อื่น", val: m.packaging + m.shipCost + m.otherVar + m.returnCost, color:"var(--c-pack)"},
+      {label:"ค่าการตลาด", val: bd.marketing, color:"var(--c-mkt)"},
+      {label:"ค่าธรรมเนียม+ชำระเงิน", val: bd.platform + bd.payment, color:"var(--c-fee)"},
+      {label:"VAT (สุทธิ)", val: bd.netVAT, color:"var(--c-vat)"},
+      {label:"กำไร", val: bd.profit, color:"var(--c-profit)"},
+    ] : [];
+
+    if (valid){
+      const total = P;
+      $("bar").innerHTML = segs.map(s =>
+        `<span style="width:${Math.max(0, s.val/total*100)}%;background:${s.color}"></span>`).join("");
+      $("legend").innerHTML = segs.map(s =>
+        `<div class="li"><span class="dot" style="background:${s.color}"></span>${s.label}
+         <span class="v ${s.val<0?'neg':''}">${fmtBaht(s.val)}</span></div>`).join("");
+    } else {
+      $("bar").innerHTML = ""; $("legend").innerHTML = "";
+    }
+
+    // margin warning
+    const cm = bd ? bd.profit : NaN;
+    const marginPct = valid ? cm / P * 100 : NaN;
+    if (!valid){
+      $("marginWarn").innerHTML = `<div class="warnbox">ต้นทุน% รวมกัน (การตลาด+แพลตฟอร์ม+ชำระเงิน+VAT) เกิน 100% — ไม่มีทางตั้งราคาให้ได้กำไร ลองลดค่าการตลาดหรือค่าธรรมเนียม</div>`;
+    } else if (cm <= 0){
+      $("marginWarn").innerHTML = `<div class="warnbox">กำไรติดลบที่ราคานี้ — ลองเพิ่มกำไรที่ต้องการ หรือลดต้นทุน</div>`;
+    } else {
+      $("marginWarn").innerHTML = `<div class="okbox">ที่ราคานี้ได้กำไร <b>${fmtBaht(cm)}</b>/ชิ้น (${fmt(marginPct,1)}% ของราคาขาย)</div>`;
+    }
+
+    // KPIs
+    $("cmUnit").textContent = valid ? fmtBaht(cm) : "–";
+    $("marginPct").textContent = valid ? fmt(marginPct,1)+"% ของราคาขาย" : "–";
+
+    const breakeven = (valid && cm > 0) ? m.fixedMonthly / cm : NaN;
+    $("breakeven").textContent = isFinite(breakeven) ? fmtInt(ceilUnits(breakeven)) + " ชิ้น" : "–";
+
+    // net monthly profit at target qty
+    const qty = num("targetQty");
+    const netMonthly = (valid && cm) ? qty * cm - m.fixedMonthly : NaN;
+    $("netProfit").textContent = isFinite(netMonthly) ? fmtBaht(netMonthly) : "–";
+    const box = $("netProfitBox");
+    box.classList.toggle("good", isFinite(netMonthly) && netMonthly >= 0);
+    box.classList.toggle("bad", isFinite(netMonthly) && netMonthly < 0);
+
+    // actual price (of the focused platform)
+    const ap = parseFloat(m.actual);
+    if (isFinite(ap) && ap > 0){
+      const abd = breakdownAt(ap, m);
+      const acm = abd.profit;
+      const abe = acm > 0 ? ceilUnits(m.fixedMonthly / acm) : NaN;
+      const amargin = acm/ap*100;
+      const aNet = qty * acm - m.fixedMonthly;
+      const cls = acm >= 0 ? 'good' : 'bad';
+      $("actualResult").innerHTML = `
+        <div class="kpis" style="margin-top:2px;">
+          <div class="kpi ${cls}"><div class="k">กำไรจริง/ชิ้น</div><div class="val">${fmtBaht(acm)}</div><div class="foot">${fmt(amargin,1)}% ของราคาขาย</div></div>
+          <div class="kpi"><div class="k">คุ้มทุน/เดือน</div><div class="val">${isFinite(abe)?fmtInt(abe)+' ชิ้น':'–'}</div><div class="foot">กำไรสุทธิ ${isFinite(aNet)?fmtBaht(aNet):'–'}</div></div>
+        </div>
+        <div class="legend" style="margin-top:10px;">
+          <div class="li"><span class="dot" style="background:var(--c-mkt)"></span>ค่าการตลาด<span class="v">${fmtBaht(abd.marketing)}</span></div>
+          <div class="li"><span class="dot" style="background:var(--c-fee)"></span>ค่าธรรมเนียม+ชำระ<span class="v">${fmtBaht(abd.platform+abd.payment)}</span></div>
+          <div class="li"><span class="dot" style="background:var(--c-vat)"></span>VAT สุทธิ<span class="v">${fmtBaht(abd.netVAT)}</span></div>
+          <div class="li"><span class="dot" style="background:var(--c-cost)"></span>ต้นทุนรวม<span class="v">${fmtBaht(abd.base)}</span></div>
+        </div>`;
+    } else {
+      $("actualResult").innerHTML = `<p class="hint" style="margin:6px 0 0">ยังไม่ได้กรอก “ราคาขายจริง” ของแพลตฟอร์มนี้ (กรอกได้ในตาราง “ค่าแต่ละแพลตฟอร์ม” ด้านซ้าย)</p>`;
+    }
+
+    renderCompare(m);
+    renderGrid();
+    renderChart(m);
+  }
+
+  // ---------- channel chips (focus selector) ----------
+  $("channels").addEventListener("click", e => {
+    const chip = e.target.closest(".chip");
+    if (!chip || chip.classList.contains("on")) return;
+    $("channels").querySelectorAll(".chip").forEach(c => c.classList.remove("on"));
+    chip.classList.add("on");
+    render();
+  });
+  function currentChannel(){
+    const c = document.querySelector("#channels .chip.on");
+    return c ? c.dataset.ch : (CHANNELS[0] && CHANNELS[0].name) || "";
+  }
+
+  // ---------- live recompute (shared fields) ----------
+  inputIds.forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener("input", render);
+  });
+  $("vatCredit").addEventListener("change", render);
+
+  // ---------- saved products ----------
+  const KEY = "productPricingList_v1";
+  const load = () => { try { return JSON.parse(localStorage.getItem(KEY)) || []; } catch(e){ return []; } };
+  const save = list => localStorage.setItem(KEY, JSON.stringify(list));
+
+  // Bridge for the Firebase sync module (see <script type="module"> at bottom).
+  // Local storage stays the offline cache; the cloud mirrors it when configured.
+  window.getLocalProducts = () => load();
+  window.applyCloudProducts = (list) => { save(Array.isArray(list) ? list : []); renderList(); };
+
+  function snapshot(){
+    const m = getModel();
+    const P = m.recPrice;
+    const cm = (isFinite(P)&&P>0) ? breakdownAt(P, m).profit : NaN;
+    return {
+      id: editingId || (Date.now()+""),
+      name: $("name").value || "(ไม่มีชื่อ)",
+      channel: currentChannel(),
+      shared: SHARED_FIELDS.reduce((o,id)=>{ o[id]=$(id).value; return o; }, {}),
+      vatCredit: $("vatCredit").checked,
+      channels: JSON.parse(JSON.stringify(channelFees)),   // every platform's settings
+      // cached results for the table (the selected channel)
+      cost: m.baseBaht, recPrice: P, bufferPrice: P*(1+m.bufferPct),
+      cm, margin: isFinite(P)&&P>0 ? cm/P*100 : NaN,
+      breakeven: cm>0 ? ceilUnits(m.fixedMonthly/cm) : NaN
+    };
+  }
+
+  // Restore a saved product — shared fields + every platform's settings (with old-format fallback).
+  function loadProduct(p){
+    $("vatCredit").checked = !!p.vatCredit;
+    if (p.channels){                               // new format: shared + all platforms
+      if (p.shared) Object.entries(p.shared).forEach(([k,v]) => { if ($(k)) $(k).value = v; });
+      CHANNELS.forEach(c => {
+        if (p.channels[c.name]) channelFees[c.name] = Object.assign({}, channelFees[c.name], p.channels[c.name]);
+      });
+      persistChannelFees();
+      const ch = (p.channel && channelFees[p.channel]) ? p.channel : CHANNELS[0].name;
+      document.querySelectorAll("#channels .chip").forEach(c => c.classList.toggle("on", c.dataset.ch === ch));
+    } else if (p.inputs){                          // old format: single-channel snapshot
+      Object.entries(p.inputs).forEach(([k,v]) => { if ($(k)) $(k).value = v; });
+      document.querySelectorAll("#channels .chip").forEach(c => c.classList.toggle("on", c.dataset.ch === p.channel));
+    }
+    render();
+  }
+
+  // Recompute a saved product's numbers for one platform (from stored shared + per-platform data).
+  function metricsFor(p, chName){
+    const sh = p.shared || {};
+    const cf = (p.channels && p.channels[chName]) || {};
+    const nf = (v,d=0) => { const n=parseFloat(v); return isFinite(n)?n:d; };
+    const vRatePct = nf(sh.vatRate, 7);
+    const base = {
+      productCost: nf(sh.productCost), packaging: nf(sh.packaging), otherVar: nf(sh.otherVar),
+      returnRate: nf(sh.returnRate)/100, vRate: vRatePct/(100+vRatePct), vatCredit: !!p.vatCredit,
+      desiredProfit: nf(sh.desiredProfit), fixedMonthly: nf(sh.fixedMonthly), bufferPct: nf(sh.bufferPct)/100,
+      mPct: nf(cf.mkt)/100, pfPct: nf(cf.fee)/100, payPct: nf(cf.pay)/100
+    };
+    const b = baseFor(base, nf(cf.ship));
+    const m = Object.assign({}, base, { baseBaht: b.baseBaht, vatableBaht: b.vatableBaht });
+    const price = priceForChannel(m, m.pfPct, m.payPct);
+    const ap = parseFloat(cf.actual);
+    let aProfit=NaN, aMargin=NaN, aBe=NaN;
+    if (isFinite(ap) && ap>0){
+      aProfit = breakdownAt(ap, m).profit;
+      aMargin = aProfit/ap*100;
+      aBe = aProfit>0 ? ceilUnits(m.fixedMonthly/aProfit) : NaN;
+    }
+    return { fee: nf(cf.fee), pay: nf(cf.pay), ship: nf(cf.ship), mkt: nf(cf.mkt),
+             price, buffer: price*(1+m.bufferPct), actual: cf.actual, aProfit, aMargin, aBe };
+  }
+
+  function renderList(){
+    const list = load();
+    const body = $("plistBody");
+    $("emptyList").style.display = list.length ? "none" : "block";
+    body.innerHTML = list.map(p => {
+      const head = `<tr class="prod-head" data-id="${p.id}">
+        <td class="name" colspan="7">${escapeHtml(p.name)}</td>
+        <td style="white-space:nowrap;">
+          <button class="iconbtn" data-act="edit" title="โหลดข้อมูลทั้งหมด">✎</button>
+          <button class="iconbtn" data-act="del" title="ลบ">🗑</button>
+        </td>
+      </tr>`;
+      let platRows;
+      if (p.channels){
+        const mets = CHANNELS.map(c => Object.assign({ name: c.name }, metricsFor(p, c.name)));
+        const prices = mets.filter(x => isFinite(x.price)).map(x => x.price);
+        const best = prices.length ? Math.min(...prices) : NaN;
+        platRows = mets.map(x => {
+          const isBest = isFinite(x.price) && Math.abs(x.price - best) < 1e-6;
+          const apHasVal = x.actual !== "" && x.actual != null && isFinite(parseFloat(x.actual));
+          const profitCell = isFinite(x.aProfit)
+            ? `${fmtBaht(x.aProfit)} <span style="font-size:11px;color:var(--muted)">(${fmt(x.aMargin,1)}%)</span>`
+            : "–";
+          const profitStyle = x.aProfit < 0 ? ' style="color:var(--bad);font-weight:700"'
+                            : isFinite(x.aProfit) ? ' style="color:var(--good);font-weight:700"' : "";
+          return `<tr class="plat-row" data-id="${p.id}">
+            <td class="plat">${escapeHtml(x.name)}${isBest?'<span class="badge">ต่ำสุด</span>':''}</td>
+            <td>${fmt(x.fee,1)}%+${fmt(x.pay,1)}%</td>
+            <td><b>${isFinite(x.price)?fmtBaht(x.price):"–"}</b></td>
+            <td>${isFinite(x.buffer)?fmtBaht(x.buffer):"–"}</td>
+            <td>${apHasVal?fmtBaht(parseFloat(x.actual)):"–"}</td>
+            <td${profitStyle}>${profitCell}</td>
+            <td>${isFinite(x.aBe)?fmtInt(x.aBe)+" ชิ้น":"–"}</td>
+            <td></td>
+          </tr>`;
+        }).join("");
+      } else {
+        // old-format fallback: one summary row from cached values
+        platRows = `<tr class="plat-row" data-id="${p.id}">
+          <td class="plat">${escapeHtml(p.channel||"-")}</td>
+          <td>–</td>
+          <td><b>${isFinite(p.recPrice)?fmtBaht(p.recPrice):"–"}</b></td>
+          <td>${isFinite(p.bufferPrice)?fmtBaht(p.bufferPrice):"–"}</td>
+          <td>–</td>
+          <td>${isFinite(p.cm)?fmtBaht(p.cm):"–"}</td>
+          <td>${isFinite(p.breakeven)?fmtInt(p.breakeven):"–"}</td>
+          <td></td>
+        </tr>`;
+      }
+      return head + platRows;
+    }).join("");
+  }
+
+  function escapeHtml(s){ return (s+"").replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+  $("saveBtn").addEventListener("click", () => {
+    const list = load();
+    const snap = snapshot();
+    const idx = list.findIndex(p => p.id === snap.id);
+    if (idx >= 0) list[idx] = snap; else list.push(snap);
+    save(list);
+    editingId = snap.id;
+    renderList();
+    if (window.cloud && window.cloud.enabled) window.cloud.push(snap);
+    flash($("saveBtn"), idx>=0 ? "✓ อัปเดตแล้ว" : "✓ บันทึกแล้ว");
+  });
+
+  $("newBtn").addEventListener("click", () => {
+    editingId = null;
+    $("name").value = "";
+    CHANNELS.forEach(c => { if (channelFees[c.name]) channelFees[c.name].actual = ""; });  // clear actual prices
+    persistChannelFees();
+    render();
+    $("name").focus();
+  });
+
+  $("plistBody").addEventListener("click", e => {
+    const btn = e.target.closest("button[data-act]");
+    if (!btn) return;
+    const id = e.target.closest("tr").dataset.id;
+    const list = load();
+    const p = list.find(x => x.id === id);
+    if (!p) return;
+    if (btn.dataset.act === "del"){
+      if (confirm("ลบสินค้า “"+p.name+"” ?")){
+        save(list.filter(x => x.id !== id));
+        if (editingId === id) editingId = null;
+        renderList();
+        if (window.cloud && window.cloud.enabled) window.cloud.del(id);
+      }
+    } else if (btn.dataset.act === "edit"){
+      loadProduct(p);
+      editingId = id;
+      window.scrollTo({top:0, behavior:"smooth"});
+    }
+  });
+
+  $("exportBtn").addEventListener("click", () => {
+    const list = load();
+    if (!list.length){ alert("ยังไม่มีสินค้าให้ export"); return; }
+    const head = ["สินค้า","แพลตฟอร์ม","ค่าธรรมเนียม%","ค่าชำระ%","ค่าส่ง","การตลาด%","ราคาที่ควรตั้ง","ราคาเผื่อ","ราคาขายจริง","กำไรจริง/ชิ้น","Margin%","คุ้มทุน/เดือน"];
+    const rows = [];
+    list.forEach(p => {
+      if (p.channels){
+        CHANNELS.forEach(c => {
+          const x = metricsFor(p, c.name);
+          const apVal = (x.actual!=="" && x.actual!=null && isFinite(parseFloat(x.actual))) ? round(parseFloat(x.actual)) : "";
+          rows.push([p.name, c.name, x.fee, x.pay, x.ship, x.mkt, round(x.price), round(x.buffer),
+            apVal, round(x.aProfit), isFinite(x.aMargin)?x.aMargin.toFixed(1):"", isFinite(x.aBe)?x.aBe:""]);
+        });
+      } else {
+        rows.push([p.name, p.channel||"", "", "", "", "", round(p.recPrice), round(p.bufferPrice), "",
+          round(p.cm), isFinite(p.margin)?p.margin.toFixed(1):"", isFinite(p.breakeven)?p.breakeven:""]);
+      }
+    });
+    const csv = "﻿" + [head, ...rows].map(r =>
+      r.map(c => `"${(c+"").replace(/"/g,'""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], {type:"text/csv;charset=utf-8;"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "ราคาสินค้า.csv";
+    a.click();
+  });
+  const round = n => isFinite(n) ? Math.round(n*100)/100 : "";
+
+  function flash(btn, txt){
+    const old = btn.textContent; btn.textContent = txt;
+    setTimeout(()=>{ btn.textContent = old; }, 1400);
+  }
+
+  // init — restore last-saved shared values; per-platform lives in channelFees
+  restoreGlobal();
+  buildChips();
+  buildGrid();
+  buildCompareSkeleton();
+  render();
+  renderList();
+})();
+</script>
+
+<!-- ============ Firebase sync (Anonymous auth + Firestore) ============ -->
+<!-- Loads only when firebase-config.js has real values; otherwise stays offline. -->
+<script type="module">
+(async () => {
+  const setStatus = (txt, cls) => {
+    const e = document.getElementById('cloudStatus');
+    if (e){ e.textContent = txt; e.className = 'cloud-pill ' + (cls || 'off'); }
+  };
+  const cfg = window.FIREBASE_CONFIG;
+  if (!cfg || !cfg.apiKey || /PASTE/i.test(cfg.apiKey)){
+    setStatus('● ออฟไลน์ (ยังไม่ตั้งค่า Firebase)', 'off');
+    return;
+  }
+  try {
+    setStatus('● กำลังเชื่อมต่อ…', 'wait');
+    const V = "10.12.2";
+    const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+    const { getAuth, signInAnonymously, onAuthStateChanged } =
+      await import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`);
+    const { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, writeBatch } =
+      await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+
+    const app  = initializeApp(cfg);
+    const auth = getAuth(app);
+    const db   = getFirestore(app);
+    const clean = p => JSON.parse(JSON.stringify(p));   // strips NaN/undefined for Firestore
+    let firstSnap = true;
+
+    onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+      const colRef = collection(db, "users", user.uid, "products");
+
+      window.cloud = {
+        enabled: true,
+        push: (p)  => setDoc(doc(colRef, String(p.id)), clean(p)).catch(e => console.error('cloud push', e)),
+        del:  (id) => deleteDoc(doc(colRef, String(id))).catch(e => console.error('cloud del', e)),
+      };
+
+      onSnapshot(colRef, (snap) => {
+        const remote = snap.docs.map(d => d.data());
+        if (firstSnap){
+          firstSnap = false;
+          // First connect: push any local-only items up to the cloud (migration); cloud wins on conflicts.
+          const local = (window.getLocalProducts && window.getLocalProducts()) || [];
+          const remoteIds = new Set(remote.map(p => String(p.id)));
+          const localOnly = local.filter(p => !remoteIds.has(String(p.id)));
+          if (localOnly.length){
+            const batch = writeBatch(db);
+            localOnly.forEach(p => batch.set(doc(colRef, String(p.id)), clean(p)));
+            batch.commit().catch(e => console.error('cloud migrate', e));
+          }
+          window.applyCloudProducts && window.applyCloudProducts(remote.concat(localOnly));
+        } else {
+          window.applyCloudProducts && window.applyCloudProducts(remote);
+        }
+        setStatus('● ซิงก์แล้ว', 'ok');
+      }, (err) => { console.error(err); setStatus('● ซิงก์ไม่สำเร็จ', 'err'); });
+    });
+
+    await signInAnonymously(auth);
+  } catch (err) {
+    console.error('Firebase init error', err);
+    setStatus('● เชื่อมต่อ Firebase ไม่สำเร็จ', 'err');
+  }
+})();
+</script>
+</body>
+</html>
